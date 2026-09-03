@@ -11,7 +11,6 @@ import shutil
 import tempfile
 import time
 import uuid
-from string import Template
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -29,7 +28,25 @@ from document_processor import (
 )
 
 load_dotenv(override=True)
-API_KEY = os.getenv("GEMINI_API_KEY")
+
+
+def read_api_key():
+    """
+    Lấy API key theo thứ tự: biến môi trường / .env -> st.secrets.
+
+    Trên Streamlit Community Cloud không có file .env; key được đặt ở
+    App settings > Secrets và đọc qua st.secrets.
+    """
+    key = (os.getenv("GEMINI_API_KEY") or "").strip()
+    if key:
+        return key
+    try:
+        return str(st.secrets["GEMINI_API_KEY"]).strip()
+    except Exception:
+        return ""
+
+
+API_KEY = read_api_key()
 
 MODELS = {
     "Gemini 2.5 Flash — nhanh, tiết kiệm": "gemini-2.5-flash",
@@ -851,9 +868,15 @@ def render_main(client):
 
 
 def main():
-    if not API_KEY or API_KEY.strip() in ("", "your_key_here"):
-        st.error("⚠️ Chưa cấu hình GEMINI_API_KEY. Hãy thêm key vào file `.env` rồi tải lại trang.")
-        st.code("GEMINI_API_KEY=AIza...", language="bash")
+    if not API_KEY or API_KEY in ("your_key_here", "AIza_dan_key_cua_ban_vao_day"):
+        st.error("⚠️ Chưa cấu hình GEMINI_API_KEY.")
+        st.markdown(
+            """
+- **Chạy trên máy cá nhân:** thêm key vào file `.env` ở thư mục dự án
+- **Streamlit Community Cloud:** vào *App settings → Secrets* rồi dán key vào đó
+"""
+        )
+        st.code('GEMINI_API_KEY = "AIza..."', language="toml")
         st.stop()
 
     if "client" not in st.session_state:

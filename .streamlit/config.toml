@@ -1,0 +1,14 @@
+[theme]
+base = "dark"
+primaryColor = "#22c55e"
+backgroundColor = "#121826"
+secondaryBackgroundColor = "#1a2133"
+textColor = "#e2e8f0"
+
+[server]
+fileWatcherType = "auto"
+# Gioi han dung luong moi tep tai len (MB)
+maxUploadSize = 200
+
+[browser]
+gatherUsageStats = false

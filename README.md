@@ -51,6 +51,44 @@ processed_docs/          bản Markdown trung gian (tự sinh, có thể xoá)
 .streamlit/config.toml   theme và giới hạn dung lượng tải lên
 ```
 
+## Triển khai (Deploy)
+
+### Streamlit Community Cloud — khuyến nghị
+
+1. Push code lên GitHub (repo này: `nhuphiphc-ops/NotebookLM-Clone`).
+2. Vào [share.streamlit.io](https://share.streamlit.io) → **Create app** → **Deploy a public
+   app from GitHub**.
+3. Chọn repo, branch `main`, main file `app.py`.
+4. Mở **Advanced settings → Secrets** và dán:
+
+   ```toml
+   GEMINI_API_KEY = "AIza..."
+   ```
+
+5. **Deploy**. App tự deploy lại mỗi lần push lên `main`.
+
+App đọc key theo thứ tự: biến môi trường / `.env` → `st.secrets`. Nhờ vậy cùng một code
+chạy được cả ở máy cá nhân và trên cloud, không cần sửa gì.
+
+### Không deploy được lên Vercel
+
+Vercel chạy serverless function: stateless, giới hạn thời gian thực thi, không giữ
+WebSocket. Streamlit cần một process sống liên tục và một kết nối WebSocket cho mỗi phiên.
+Muốn lên Vercel phải viết lại thành ứng dụng web thường (ví dụ Next.js + API route).
+
+Các lựa chọn khác chạy được: Hugging Face Spaces, Render, Railway, Fly.io (Docker).
+
+### Giới hạn khi chạy trên cloud
+
+- **Ổ đĩa là tạm.** Tài liệu người dùng tải lên qua web sẽ mất khi app restart hoặc thức
+  dậy sau khi sleep. Chỉ những file đã commit trong `docs/` là còn. Muốn lưu lâu dài phải
+  gắn thêm object storage (S3 / GCS) — hiện chưa có.
+- **RAM khoảng 1 GB** trên gói miễn phí. `maxUploadSize = 200` (MB) trong
+  `.streamlit/config.toml` là quá cao cho môi trường này; nên hạ xuống 25–50 MB khi deploy.
+- App miễn phí sẽ **sleep** nếu không có ai truy cập; lần vào đầu tiên sau đó sẽ chậm.
+- Hạn mức Gemini free tier (ví dụ 20 lượt/ngày cho `gemini-2.5-flash`) là của **API key**,
+  nên mọi người dùng app đều tiêu vào cùng một hạn mức đó.
+
 ## Lưu ý vận hành
 
 - Tệp trên Gemini File API **hết hạn sau 48 giờ**. App tự phát hiện và nạp lại khi cần,

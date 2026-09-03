@@ -1,4 +1,19 @@
-﻿.env
-__pycache__/
+# Bi mat - KHONG BAO GIO commit
+.env
+.streamlit/secrets.toml
+
+# Ban chuyen doi trung gian (tu sinh lai duoc)
 processed_docs/
-.streamlit/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# OS / editor
+Thumbs.db
+desktop.ini
+.DS_Store
+.idea/
+.vscode/
