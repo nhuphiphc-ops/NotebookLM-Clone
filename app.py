@@ -174,6 +174,31 @@ p {
     border-color: #2c3550 !important;
     box-shadow: none !important;
 }
+
+/* 📱 Tối ưu hoá cho Điện thoại (Mobile Responsive) */
+@media (max-width: 768px) {
+    .app-title { font-size: 26px !important; }
+    .app-subtitle { font-size: 15px !important; }
+    
+    .welcome-banner, .warning-banner {
+        padding: 12px 16px !important;
+    }
+    .warning-banner {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    /* Gợi ý câu hỏi trên điện thoại nên dàn ra một chút để dễ bấm */
+    [data-testid="stBaseButton-secondary"] {
+        padding: 12px 16px !important;
+        width: 100% !important;
+    }
+    [data-testid="stBaseButton-secondary"] p {
+        font-size: 15px !important;
+    }
+}
+
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 </style>
