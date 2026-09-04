@@ -41,6 +41,29 @@ Ký hiệu trạng thái: `✅` đã nạp · `🔄` đã sửa, cần nạp l�
 
 `.doc`, `.xls`, `.ppt`, `.pptx` chưa hỗ trợ — hãy lưu lại thành định dạng mới.
 
+### Giới hạn dung lượng
+
+| Tầng | Giới hạn | Ghi chú |
+|---|---|---|
+| `maxUploadSize` (config.toml) | 200 MB | tự đặt được, mặc định của Streamlit cũng là 200 |
+| **Gemini — PDF** | **50 MB hoặc 1000 trang** | giới hạn cứng; app chặn sẵn và báo lý do |
+| Gemini — định dạng khác | 2 GB/tệp, 20 GB/project | tệp tự xoá sau 48 giờ |
+| RAM Streamlit Cloud (free) | ~1 GB đảm bảo, tối đa ~2,7 GB | tải tệp quá lớn sẽ làm app restart |
+| GitHub (nếu commit vào `docs/`) | 100 MB/tệp | vượt là bị chặn push |
+
+`.docx` và `.xlsx` được chuyển sang Markdown **trước khi** nạp lên Gemini, nên tệp nguồn
+lớn vẫn dùng được — giới hạn 50 MB chỉ áp cho PDF. Nút thắt của chúng là RAM lúc đọc file.
+
+Muốn nâng ngưỡng tải lên, sửa `.streamlit/config.toml`:
+
+```toml
+[server]
+maxUploadSize = 500
+```
+
+Nhưng nâng quá 50 MB không giúp được gì cho PDF, và trên gói miễn phí thì tệp vài trăm MB
+sẽ làm app hết RAM. Với PDF lớn, cách đúng là tách nhỏ file.
+
 ## Cấu trúc
 
 ```

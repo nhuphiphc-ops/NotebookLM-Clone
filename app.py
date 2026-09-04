@@ -446,6 +446,12 @@ def friendly_error(exc):
     """Diễn giải lỗi API thành thông báo tiếng Việt dễ hiểu."""
     text = str(exc)
     low = text.lower()
+    if is_transient_error(exc):
+        return (
+            "Máy chủ Gemini đang quá tải (lỗi 503 phía Google, không phải lỗi của app "
+            "hay tài liệu). App đã tự thử lại nhưng vẫn chưa được. Hãy đợi một lát rồi hỏi "
+            "lại, hoặc đổi sang mô hình khác trong ⚙️ Cài đặt hệ thống."
+        )
     if "resource_exhausted" in low or "429" in low:
         match = re.search(r"retry in ([\d.]+)s", text)
         wait = f" Hãy thử lại sau khoảng {float(match.group(1)):.0f} giây." if match else ""
@@ -488,7 +494,16 @@ def build_parts(pending, prompt):
     return parts
 
 
-def stream_answer(parts, placeholder):
+def is_transient_error(exc):
+    """Lỗi tạm thời phía máy chủ Gemini — thử lại là được, không phải lỗi cấu hình."""
+    text = str(exc).lower()
+    return any(
+        token in text
+        for token in ("503", "unavailable", "high demand", "overloaded", "internal error")
+    )
+
+
+def stream_answer(parts, placeholder, progress=None):
     """Phát trực tiếp câu trả lời; trả về (văn bản, usage)."""
     answer, usage = "", None
     for chunk in st.session_state.chat.send_message_stream(parts):
@@ -498,11 +513,34 @@ def stream_answer(parts, placeholder):
             piece = None
         if piece:
             answer += piece
+            if progress is not None:
+                progress["emitted"] = True
             placeholder.markdown(answer + " ▌")
         if getattr(chunk, "usage_metadata", None):
             usage = chunk.usage_metadata
     placeholder.markdown(answer if answer else "_(Mô hình không trả về nội dung nào.)_")
     return answer, usage
+
+
+def send_with_retry(parts, placeholder, attempts=3):
+    """
+    Tự thử lại khi Gemini báo quá tải (503). Chỉ thử lại nếu chưa chữ nào được
+    phát ra, để không nối hai câu trả lời vào nhau.
+    """
+    for attempt in range(attempts):
+        progress = {"emitted": False}
+        try:
+            return stream_answer(parts, placeholder, progress)
+        except Exception as exc:
+            last_try = attempt == attempts - 1
+            if last_try or progress["emitted"] or not is_transient_error(exc):
+                raise
+            delay = 2 * (2 ** attempt)  # 2s, 4s
+            placeholder.markdown(
+                f"_Mô hình đang quá tải. Tự thử lại sau {delay} giây "
+                f"(lần {attempt + 2}/{attempts})..._"
+            )
+            time.sleep(delay)
 
 
 def transcript_markdown():
@@ -610,6 +648,7 @@ def render_sidebar(client):
             key=f"uploader_{st.session_state.uploader_key}",
             help="Hỗ trợ: " + ", ".join(UPLOAD_TYPES).upper(),
         )
+        st.caption("⚠️ Riêng PDF: Gemini chỉ nhận tối đa 50 MB hoặc 1000 trang mỗi file.")
         if uploaded:
             if target == "➕ Thư mục mới..." and not new_folder:
                 st.warning("Hãy nhập tên thư mục mới trước khi tải lên.")
@@ -860,7 +899,7 @@ def render_main(client):
         placeholder.markdown("_Đang đọc tài liệu và phân tích..._")
         try:
             try:
-                answer, usage = stream_answer(parts, placeholder)
+                answer, usage = send_with_retry(parts, placeholder)
             except Exception as exc:
                 if not is_expired_file_error(exc):
                     raise
@@ -875,7 +914,7 @@ def render_main(client):
                     raise RuntimeError("Không nạp lại được tài liệu, hãy bấm 'Đồng bộ' lại.")
                 parts = build_parts(retry_scope, prompt)
                 pending = retry_scope
-                answer, usage = stream_answer(parts, placeholder)
+                answer, usage = send_with_retry(parts, placeholder)
 
             st.session_state.sent_docs.update(pending)
             st.session_state.messages.append({"role": "assistant", "content": answer})

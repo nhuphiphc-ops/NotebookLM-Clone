@@ -32,6 +32,12 @@ MIME_TYPES = {
     '.csv': 'text/csv',
 }
 
+# Giới hạn CỨNG của Gemini với tài liệu PDF: 50 MB hoặc 1000 trang.
+# File vuot nguong van nap len File API duoc nhung se loi o buoc hoi dap,
+# nen phai chan tu vong quet de bao som cho nguoi dung.
+PDF_MAX_BYTES = 50 * 1024 * 1024
+PDF_MAX_PAGES = 1000
+
 # Định dạng cũ / không đọc được -> thông báo cụ thể cho người dùng
 UNSUPPORTED_HINTS = {
     '.doc': 'Định dạng .doc cũ — hãy lưu lại thành .docx',
@@ -82,6 +88,24 @@ def processed_path(rel_name):
     return _processed_path(rel_name)
 
 
+def _pdf_over_limit(abs_path, size):
+    """Trả về lý do nếu PDF vượt giới hạn của Gemini, ngược lại trả về ''."""
+    if size > PDF_MAX_BYTES:
+        return (
+            'PDF nặng %.0f MB, vượt giới hạn 50 MB của Gemini — hãy tách nhỏ file'
+            % (size / 1024 / 1024)
+        )
+    try:
+        import pypdf
+
+        pages = len(pypdf.PdfReader(abs_path, strict=False).pages)
+    except Exception:
+        return ''  # đọc không được thì cứ để Gemini phán, không chặn oan
+    if pages > PDF_MAX_PAGES:
+        return 'PDF có %d trang, vượt giới hạn 1000 trang của Gemini — hãy tách nhỏ file' % pages
+    return ''
+
+
 def list_documents():
     """
     Liệt kê mọi tài liệu trong docs/ (bao gồm thư mục con).
@@ -109,6 +133,10 @@ def list_documents():
                 )
             elif size == 0:
                 supported, reason = False, 'File rỗng (0 byte)'
+            elif ext == '.pdf':
+                over = _pdf_over_limit(abs_path, size)
+                if over:
+                    supported, reason = False, over
             docs.append({
                 'name': rel,
                 'path': abs_path,
