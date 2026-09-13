@@ -26,6 +26,7 @@ from document_processor import (
     processed_path,
     scan_and_process_documents,
 )
+from pdf_to_docx_module import convert_pdf_to_docx
 
 load_dotenv(override=True)
 
@@ -798,6 +799,46 @@ def render_document_list(client, disk_docs):
         with st.expander(f"⚠️ Bỏ qua ({len(st.session_state.last_skipped)})"):
             for item in st.session_state.last_skipped:
                 st.caption(f"• {item['name']} — {item['reason']}")
+
+    st.markdown('<div class="sidebar-header">🛠 CÔNG CỤ PHỤ</div>', unsafe_allow_html=True)
+    with st.expander("📄 Chuyển đổi PDF sang DOCX"):
+        st.write("Tải file PDF lên để chuyển sang định dạng Word (.docx).")
+        uploaded_pdf = st.file_uploader("Chọn file PDF", type=["pdf"], key="pdf_to_docx_uploader")
+        if uploaded_pdf:
+            if st.button("Chuyển đổi ngay", use_container_width=True, type="primary"):
+                with st.spinner("Đang chuyển đổi... quá trình này có thể mất vài phút."):
+                    # Save uploaded file to a temporary file
+                    import tempfile
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
+                        tmp_pdf.write(uploaded_pdf.getvalue())
+                        tmp_pdf_path = tmp_pdf.name
+                    
+                    try:
+                        out_docx_path = tmp_pdf_path.replace(".pdf", ".docx")
+                        convert_pdf_to_docx(tmp_pdf_path, out_docx_path)
+                        
+                        with open(out_docx_path, "rb") as docx_file:
+                            docx_bytes = docx_file.read()
+                            
+                        # Offer download
+                        download_name = uploaded_pdf.name.replace(".pdf", ".docx")
+                        st.download_button(
+                            label=f"⬇️ Tải xuống {download_name}",
+                            data=docx_bytes,
+                            file_name=download_name,
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            use_container_width=True,
+                            type="primary"
+                        )
+                        st.success("Chuyển đổi thành công!")
+                    except Exception as e:
+                        st.error(f"Lỗi: {e}")
+                    finally:
+                        # Clean up
+                        if os.path.exists(tmp_pdf_path):
+                            os.remove(tmp_pdf_path)
+                        if 'out_docx_path' in locals() and os.path.exists(out_docx_path):
+                            os.remove(out_docx_path)
 
 
 # --------------------------------------------------------------------- main
