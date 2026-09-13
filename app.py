@@ -34,20 +34,29 @@ load_dotenv(override=True)
 def read_api_key():
     """
     Lấy API key theo thứ tự: biến môi trường / .env -> st.secrets.
-
-    Trên Streamlit Community Cloud không có file .env; key được đặt ở
-    App settings > Secrets và đọc qua st.secrets.
     """
     key = (os.getenv("GEMINI_API_KEY") or "").strip()
-    if key:
-        return key
-    try:
-        return str(st.secrets["GEMINI_API_KEY"]).strip()
-    except Exception:
-        return ""
+    if not key:
+        try:
+            key = (st.secrets.get("GEMINI_API_KEY") or "").strip()
+        except Exception:
+            pass
+    return key
 
 
 API_KEY = read_api_key()
+
+# --------------------------------------------------------------------- BẢO MẬT
+
+def is_safe_path(base_dir, target_path):
+    """
+    [BẢO MẬT] Ngăn chặn tấn công Path Traversal (vượt quyền thư mục).
+    Đảm bảo đường dẫn đích hoàn toàn nằm bên trong thư mục gốc cho phép.
+    """
+    base_abs = os.path.abspath(base_dir)
+    target_abs = os.path.abspath(target_path)
+    return target_abs.startswith(base_abs + os.sep) or target_abs == base_abs
+
 
 MODELS = {
     "Gemini 2.5 Flash — nhanh, tiết kiệm": "gemini-2.5-flash",
@@ -397,6 +406,12 @@ def remove_document(client, name):
     st.session_state.starred.discard(name)
 
     local_path = os.path.join(DOCS_DIR, *name.split("/"))
+    
+    # KIỂM TRA BẢO MẬT: Ngăn chặn xoá nhầm file ngoài thư mục docs/ (Path Traversal)
+    if not is_safe_path(DOCS_DIR, local_path):
+        st.error(f"Bảo mật: Từ chối xoá đường dẫn không an toàn ({name})")
+        return
+
     try:
         if os.path.isfile(local_path):
             os.remove(local_path)
@@ -523,7 +538,7 @@ def stream_answer(parts, placeholder, progress=None):
     return answer, usage
 
 
-def send_with_retry(parts, placeholder, attempts=3):
+def send_with_retry(parts, placeholder, attempts=5):
     """
     Tự thử lại khi Gemini báo quá tải (503). Chỉ thử lại nếu chưa chữ nào được
     phát ra, để không nối hai câu trả lời vào nhau.
@@ -659,7 +674,18 @@ def render_sidebar(client):
                 os.makedirs(dest_dir, exist_ok=True)
                 saved = 0
                 for item in uploaded:
-                    dest = os.path.join(dest_dir, os.path.basename(item.name))
+                    # [BẢO MẬT] Làm sạch tên file để loại bỏ ký tự điều khiển
+                    safe_name = re.sub(r'[\x00-\x1f\x7f-\x9f/:*?"<>|]', '', os.path.basename(item.name))
+                    if not safe_name:
+                        continue
+                    
+                    dest = os.path.join(dest_dir, safe_name)
+                    
+                    # [BẢO MẬT] Chống ghi đè hoặc tạo file ngoài thư mục docs/
+                    if not is_safe_path(DOCS_DIR, dest):
+                        st.error(f"Bảo mật: Tệp {safe_name} không an toàn!")
+                        continue
+                        
                     with open(dest, "wb") as out:
                         out.write(item.getbuffer())
                     saved += 1
